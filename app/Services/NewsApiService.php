@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Category;
 use Illuminate\Support\Facades\Http;
 use App\Models\Article;
 use App\Models\Source;
@@ -20,40 +21,43 @@ class NewsApiService
     }
 
     /**
-     * Fetch articles from The Guardian API.
-     *
-     * @return array
+     * Fetch and store articles by category.
      */
-    public function fetchArticles(): array
+    public function fetchArticles(): void
     {
         try {
+            $categories = Category::all();
 
-            storeCustomLogs(['service' => 'News API', 'api_key' => $this->apiKey], 'services/newsapi');
-            $response = Http::get("{$this->baseUrl}/everything", [
-                'apiKey' => $this->apiKey,
-                'q' => 'software',
-                'order-by' => 'newest',
-                'page-size' => 10,
-                'show-fields' => 'trailText,headline,thumbnail,body',
-            ]);
+            foreach ($categories as $category) {
+                $response = Http::get("{$this->baseUrl}/everything", [
+                    'apiKey' => $this->apiKey,
+                    'q' => $category->name,
+                    'sortBy' => 'publishedAt',
+                    'language' => 'en',
+                    'pageSize' => 10,
+                ]);
 
-            if (!$response->successful()) {
-                storeCustomLogs(['service' => 'News API fetch failed', 'response' => $response->body()], 'services/newsapi');
-                return [];
+                if (!$response->successful()) {
+                    storeCustomLogs(['service' => 'News API fetch failed', 'response' => $response->body()], 'services/newsapi');
+                    continue;
+                }
+
+                $articles = $response->json('articles');
+
+                foreach ($articles as $article) {
+                    $this->storeArticle($article, $category->id);
+                }
+                sleep(2);
             }
-
-            return $response->json('response.results') ?? [];
         } catch (\Throwable $th) {
             storeCustomLogsThrowable($th, 'services/newsapi');
-            return [];
         }
     }
 
-    protected function storeArticle(array $data): void
+    protected function storeArticle(array $data, int $categoryId): void
     {
         $source = Source::firstOrCreate([
-            'id' => $data['source']['id'] ?? null,
-            'name' => $data['source']['name'],
+            'name' => $data['source']['name'] ?? 'Unknown Source',
         ]);
 
         $author = null;
@@ -66,11 +70,13 @@ class NewsApiService
             [
                 'title' => $data['title'],
                 'description' => $data['description'],
-                'url_to_image' => $data['urlToImage'],
-                'published_at' => Carbon::parse($data['publishedAt']),
                 'content' => $data['content'],
+                'url' => $data['url'],
+                'image_url' => $data['urlToImage'] ?? null,
+                'published_at' => Carbon::parse($data['publishedAt']),
                 'source_id' => $source->id,
                 'author_id' => $author?->id,
+                'category_id' => $categoryId,
             ]
         );
     }

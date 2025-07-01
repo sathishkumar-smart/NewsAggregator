@@ -56,12 +56,13 @@ class AggregatorService
                 foreach ($articles as $articleData) {
                     $apiService->storeArticle($articleData);
                 }
-            } catch (\Throwable $e) {
+            } catch (\Throwable $th) {
                 logger()->error('AggregatorService failed', [
                     'api' => get_class($apiService),
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
+                    'error' => $th->getMessage(),
+                    'trace' => $th->getTraceAsString(),
                 ]);
+                storeCustomLogsThrowable($th, 'services/aggregator');
             }
         }
     }

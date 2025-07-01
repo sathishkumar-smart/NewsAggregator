@@ -7,13 +7,43 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Auth\Events\PasswordReset;
+use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * @OA\Tag(
+ *     name="Password Reset",
+ *     description="Endpoints for password reset functionality"
+ * )
+ */
 class PasswordResetController extends Controller
 {
     /**
-     * Send password reset link to user's email.
-     *
-     * Endpoint: POST /api/password-reset
+     * @OA\Post(
+     *     path="/api/user/password-reset",
+     *     summary="Send password reset link to user's email",
+     *     tags={"Password Reset"},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"email"},
+     *             @OA\Property(property="email", type="string", example="user@example.com")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Password reset link sent",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Password reset link sent.")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Unable to send reset link",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Unable to send reset link.")
+     *         )
+     *     )
+     * )
      */
     public function sendResetLinkEmail(Request $request)
     {
@@ -25,13 +55,39 @@ class PasswordResetController extends Controller
 
         return $status === Password::RESET_LINK_SENT
             ? response()->json(['message' => 'Password reset link sent.'])
-            : response()->json(['message' => 'Unable to send reset link.'], 500);
+            : response()->json(['message' => 'Unable to send reset link.'], Response::HTTP_INTERNAL_SERVER_ERROR);
     }
 
     /**
-     * Reset the password using the token.
-     *
-     * Endpoint: POST /api/password-reset/confirm
+     * @OA\Post(
+     *     path="/api/user/password-reset/confirm",
+     *     summary="Reset password using token",
+     *     tags={"Password Reset"},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"token", "email", "password", "password_confirmation"},
+     *             @OA\Property(property="token", type="string", example="abcdef123456"),
+     *             @OA\Property(property="email", type="string", example="user@example.com"),
+     *             @OA\Property(property="password", type="string", format="password", example="newpassword"),
+     *             @OA\Property(property="password_confirmation", type="string", format="password", example="newpassword")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Password reset successful",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Password has been reset.")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=400,
+     *         description="Invalid token or request",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Invalid token or request.")
+     *         )
+     *     )
+     * )
      */
     public function reset(Request $request)
     {
@@ -56,6 +112,6 @@ class PasswordResetController extends Controller
 
         return $status === Password::PASSWORD_RESET
             ? response()->json(['message' => 'Password has been reset.'])
-            : response()->json(['message' => 'Invalid token or request.'], 400);
+            : response()->json(['message' => 'Invalid token or request.'], Response::HTTP_BAD_REQUEST);
     }
 }

@@ -4,6 +4,26 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
+/**
+ * Handle and validate user login requests.
+ *
+ * @OA\Schema(
+ *     schema="LoginRequest",
+ *     required={"email", "password"},
+ *     @OA\Property(
+ *         property="email",
+ *         type="string",
+ *         format="email",
+ *         example="user@example.com"
+ *     ),
+ *     @OA\Property(
+ *         property="password",
+ *         type="string",
+ *         format="password",
+ *         example="password123"
+ *     )
+ * )
+ */
 class LoginRequest extends FormRequest
 {
     /**
