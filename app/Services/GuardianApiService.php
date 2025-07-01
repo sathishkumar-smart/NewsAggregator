@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Category;
 use Illuminate\Support\Facades\Http;
 use App\Models\Article;
 use App\Models\Source;
@@ -26,19 +27,32 @@ class GuardianApiService
      */
     public function fetchArticles(): array
     {
-        $response = Http::get("{$this->baseUrl}/search", [
-            'api-key' => $this->apiKey,
-            'order-by' => 'newest',
-            'page-size' => 10,
-            'show-fields' => 'trailText,headline,thumbnail,body',
-        ]);
+        try {
 
-        if (!$response->successful()) {
-            logger()->error('Guardian API fetch failed', ['response' => $response->body()]);
+            $response = Http::get("{$this->baseUrl}/search", [
+                'api-key' => $this->apiKey,
+                'order-by' => 'newest',
+                'show-tags' => 'contributor',
+                'page-size' => 10,
+                'show-fields' => 'trailText,headline,thumbnail,body',
+            ]);
+
+            if (!$response->successful()) {
+                logger()->error('Guardian API fetch failed', ['response' => $response->body()]);
+                return [];
+            }
+
+            $articles = $response->json('response.results') ?? [];
+
+            foreach ($articles as $article) {
+                $this->storeArticle($article);
+            }
+
+            return $articles;
+        } catch (\Throwable $th) {
+            storeCustomLogsThrowable($th, 'services/guardianapi');
             return [];
         }
-
-        return $response->json('response.results') ?? [];
     }
 
     /**
@@ -49,28 +63,50 @@ class GuardianApiService
      */
     public function storeArticle(array $data): void
     {
-        // Source - always "The Guardian"
-        $source = Source::firstOrCreate([
-            'id' => 'guardian',
-            'name' => 'The Guardian',
-        ]);
+        try {
+            // Source - always "The Guardian"
+            $source = Source::firstOrCreate([
+                'name' => 'The Guardian',
+            ]);
 
-        // Author is not provided, default to null or "Guardian Staff"
-        $author = Author::firstOrCreate([
-            'name' => 'Guardian Staff'
-        ]);
+            // Extract first contributor from tags
+            $authorName = 'Guardian Staff'; // default fallback
+            if (!empty($data['tags'])) {
+                foreach ($data['tags'] as $tag) {
+                    if ($tag['type'] === 'contributor') {
+                        $authorName = $tag['webTitle'];
+                        break;
+                    }
+                }
+            }
 
-        Article::updateOrCreate(
-            ['url' => $data['webUrl']],
-            [
-                'title' => $data['webTitle'],
-                'description' => $data['fields']['trailText'] ?? null,
-                'url_to_image' => $data['fields']['thumbnail'] ?? null,
-                'published_at' => Carbon::parse($data['webPublicationDate']),
-                'content' => $data['fields']['body'] ?? null,
-                'source_id' => $source->id,
-                'author_id' => $author->id,
-            ]
-        );
+            $author = Author::firstOrCreate([
+                'name' => $authorName,
+            ]);
+
+            // Get or create category from pillarName
+            $category = null;
+            if (!empty($data['pillarName'])) {
+                $category = Category::firstOrCreate([
+                    'name' => $data['pillarName'],
+                ]);
+            }
+
+            Article::updateOrCreate(
+                ['url' => $data['webUrl']],
+                [
+                    'title' => $data['webTitle'],
+                    'description' => $data['fields']['trailText'] ?? null,
+                    'url_to_image' => $data['fields']['thumbnail'] ?? null,
+                    'published_at' => Carbon::parse($data['webPublicationDate']),
+                    'content' => $data['fields']['body'] ?? null,
+                    'source_id' => $source->id,
+                    'author_id' => $author->id,
+                    'category_id' => $category?->id,
+                ]
+            );
+        } catch (\Throwable $th) {
+            storeCustomLogsThrowable($th, 'services/guardianapi');
+        }
     }
 }

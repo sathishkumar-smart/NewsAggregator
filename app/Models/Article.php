@@ -5,6 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @OA\Schema(
+ *     schema="Article",
+ *     @OA\Property(property="id", type="integer", example=1),
+ *     @OA\Property(property="title", type="string", example="Breaking News"),
+ *     @OA\Property(property="content", type="string", example="This is the full article..."),
+ *     @OA\Property(property="published_at", type="string", format="date-time"),
+ * )
+ */
 class Article extends Model
 {
     use HasFactory;

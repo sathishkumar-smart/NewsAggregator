@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Category;
 use Illuminate\Support\Facades\Http;
 use App\Models\Article;
 use App\Models\Source;
@@ -20,60 +21,92 @@ class NewYorkTimesApiService
     }
 
     /**
-     * Fetch articles from NYT API.
+     * Fetch and store articles from NYT Top Stories API by category.
      *
-     * @return array
+     * @return void
      */
-    public function fetchArticles(): array
+    public function fetchArticles(): void
     {
-        $response = Http::get($this->baseUrl, [
-            'api-key' => $this->apiKey,
-            'sort' => 'newest',
-            'fq' => 'document_type:("article")',
-        ]);
+        try {
+            $categories = Category::all(); // Seeded categories
 
-        if (!$response->successful()) {
-            logger()->error('NYT API fetch failed', ['response' => $response->body()]);
-            return [];
+            foreach ($categories as $category) {
+                $response = Http::get("{$this->baseUrl}", [
+                    'api-key' => $this->apiKey,
+                    'q' => $category->name
+                ]);
+
+                if (!$response->successful()) {
+                    storeCustomLogs(
+                        ['when' => "NYT API fetch failed for category: {$category}", "response" => $response->body()],
+                        'services/newyorktimes-api'
+                    );
+                    continue;
+                }
+
+                $articles = $response->json('results') ?? [];
+
+                foreach ($articles as $article) {
+                    $this->storeArticle($article, $category);
+                }
+            }
+        } catch (\Throwable $th) {
+            storeCustomLogsThrowable($th, 'services/newyorktimes-api');
         }
-
-        return $response->json('response.docs') ?? [];
     }
 
     /**
      * Store a single NYT article into the database.
      *
      * @param array $data
+     * @param string $categoryName
      * @return void
      */
-    public function storeArticle(array $data): void
+    public function storeArticle(array $data, string $categoryName): void
     {
-        // Source - always "The New York Times"
-        $source = Source::firstOrCreate([
-            'id' => 'nyt',
-            'name' => 'The New York Times',
-        ]);
+        try {
+            // Source - always "The New York Times"
+            $source = Source::firstOrCreate([
+                'name' => 'The New York Times',
+            ]);
 
-        // Author
-        $authorName = $data['byline']['original'] ?? 'NYT Staff';
-        $author = Author::firstOrCreate([
-            'name' => $authorName,
-        ]);
+            // Author (fallback to 'NYT Staff' if not found)
+            $authorName = $data['byline'] ?? 'NYT Staff';
+            $author = Author::firstOrCreate([
+                'name' => $authorName,
+            ]);
 
-        // Image (use articleLarge or fallback)
-        $imageUrl = $data['multimedia']['default']['url'] ?? null;
+            // Category
+            $category = Category::firstOrCreate([
+                'name' => ucfirst($categoryName),
+            ]);
 
-        Article::updateOrCreate(
-            ['url' => $data['web_url']],
-            [
-                'title' => $data['headline']['main'] ?? 'Untitled',
-                'description' => $data['abstract'] ?? $data['snippet'] ?? null,
-                'url_to_image' => $imageUrl,
-                'published_at' => Carbon::parse($data['pub_date']),
-                'content' => $data['abstract'] ?? $data['snippet'] ?? null,
-                'source_id' => $source->id,
-                'author_id' => $author->id,
-            ]
-        );
+            // Image (get the first large image if exists)
+            $imageUrl = null;
+            if (!empty($data['multimedia'])) {
+                foreach ($data['multimedia'] as $media) {
+                    if (($media['format'] ?? '') === 'superJumbo') {
+                        $imageUrl = $media['url'];
+                        break;
+                    }
+                }
+            }
+
+            Article::updateOrCreate(
+                ['url' => $data['url']],
+                [
+                    'title' => $data['title'] ?? 'Untitled',
+                    'description' => $data['abstract'] ?? null,
+                    'url_to_image' => $imageUrl,
+                    'published_at' => Carbon::parse($data['published_date']),
+                    'content' => $data['abstract'] ?? null,
+                    'source_id' => $source->id,
+                    'author_id' => $author->id,
+                    'category_id' => $category->id,
+                ]
+            );
+        } catch (\Throwable $th) {
+            storeCustomLogsThrowable($th, 'services/newyorktimes-api');
+        }
     }
 }
