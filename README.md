@@ -70,7 +70,23 @@ DB_USERNAME=user
 DB_PASSWORD=root
 ```
 
+
 For Docker, you can also use a separate `.env.docker` and link it in `docker-compose.yml`.
+
+# 🔑 API Keys & External Services Configuration
+To integrate with third-party news sources, set the following environment variables in your .env or .env.docker file:
+
+# NewsAPI
+NEWS_API_KEY=your_registered_key
+NEWS_API_BASE_URL=https://newsapi.org/v2
+
+# New York Times
+NEWYORK_TIMES_API_KEY=your_registered_key
+NEWYORK_TIMES_BASE_URL=https://api.nytimes.com/svc/search/v2/articlesearch.json
+
+# The Guardian
+GUARDIAN_API_KEY=your_registered_key
+GUARDIAN_API_BASE_URL=https://content.guardianapis.com
 
 ---
 
