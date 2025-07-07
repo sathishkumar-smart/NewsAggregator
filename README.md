@@ -89,6 +89,19 @@ GUARDIAN_API_KEY=your_registered_key
 GUARDIAN_API_BASE_URL=https://content.guardianapis.com
 
 ---
+## 📰 News Aggregation Command
+
+> ⚡ **This section is very important**: The application includes a custom Laravel Artisan command that fetches and aggregates news articles from external APIs.  
+> 🕒 **Currently set to run hourly via scheduler** – but it's configurable based on your needs.
+
+---
+
+### 🔧 Usage
+
+```bash
+# This command triggers the full news aggregation from all sources
+php artisan articles:fetch
+```
 
 ## 📚 API Documentation
 
