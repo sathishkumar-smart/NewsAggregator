@@ -243,6 +243,8 @@ This project is a News Aggregator API built using **Laravel 10**, designed to ag
 
 ---
 
+📌 Note: SRP isn’t about one method per class — it’s about one reason to change. All the services,controllers have one reason: their specific domain responsibility.
+
 ## 👤 Author
 🔗 GitHub Profile: https://github.com/sathishkumar-smart
 📧 lingampellisathishkumar@gmail.com
